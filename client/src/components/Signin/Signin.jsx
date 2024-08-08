@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import GoogleButton from 'react-google-button';
 import { useNavigate } from 'react-router-dom';
-import { googleLogout, useGoogleLogin } from '@react-oauth/google';
+import { useGoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 import './Signin.css';
 import AOS from 'aos';
@@ -12,8 +12,8 @@ function Signin() {
   const [profile, setProfile] = useState(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const navigate = useNavigate()
-  // const [loginError, setLoginError] = useState(null);
+  const [errors, setErrors] = useState({});
+  const navigate = useNavigate();
 
   const login = useGoogleLogin({
     onSuccess: (codeResponse) => setUser(codeResponse),
@@ -29,61 +29,64 @@ function Signin() {
         }
       })
         .then((res) => {
-          setProfile(res.data);
+          const profileData = {
+            googleId: res.data.id,
+            email: res.data.email,
+            name: res.data.name,
+            profilePic: res.data.picture
+          };
+          setProfile(profileData);
+          // Send profile data to backend
+          axios.post('http://localhost:3001/api/google-login', profileData)
+            .then(() => {
+              localStorage.setItem('user', JSON.stringify(profileData));
+              navigate('/');
+            })
+            .catch((err) => console.log(err));
         })
         .catch((err) => console.log(err));
     }
-  }, [user]);
+  }, [user, navigate]);
 
-  const logOut = () => {
-    googleLogout();
-    setProfile(null);
-    setUser(null);
+  const validateForm = () => {
+    let isValid = true;
+    let errors = {};
+
+    if (!email.trim()) {
+      errors.email = "*Email is required";
+      isValid = false;
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errors.email = "*Email is invalid";
+      isValid = false;
+    }
+
+    if (!password) {
+      errors.password = "*Password is required";
+      isValid = false;
+    }
+
+    setErrors(errors);
+    return isValid;
   };
-
-  // const handleLogin = async (e) => {
-  //   e.preventDefault();
-
-  //   try {
-  //     // Check email
-  //     const emailResponse = await axios.post('http://localhost:3000/check-email', { email });
-
-  //     if (emailResponse.status === 200) {
-  //       // Email is valid, proceed to check password
-  //       const loginResponse = await axios.post('http://localhost:3000/login', { email, password });
-
-  //       if (loginResponse.status === 200) {
-  //         setLoginError(null);
-  //         alert('Successfully logged in');
-  //         // Perform any additional login success actions here
-  //       }
-  //     }
-  //   } catch (error) {
-  //     if (error.response && error.response.status === 400) {
-  //       setLoginError(error.response.data.message);
-  //     } else {
-  //       setLoginError('An error occurred. Please try again.');
-  //     }
-  //   }
-  // };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    axios.post('http://localhost:3001/login', { email, password })
-      .then((res) => {
-        console.log(res);
-        if (res.data === 'success') {
-          // Store the user email in localStorage
-          localStorage.setItem('user', JSON.stringify({ email }));
-          navigate('/');
-        } else {
-          alert('Login failed');
-        }
-      })
-      .catch((err) => {
-        console.log(err);
-        alert('An error occurred. Please try again.');
-      });
+    if (validateForm()) {
+      axios.post('http://localhost:3001/login', { email, password })
+        .then((res) => {
+          console.log(res);
+          if (res.data === 'success') {
+            localStorage.setItem('user', JSON.stringify({ email }));
+            navigate('/');
+          } else {
+            setErrors({ general: 'Invalid email or password' });
+          }
+        })
+        .catch((err) => {
+          console.log(err);
+          setErrors({ general: 'An error occurred. Please try again.' });
+        });
+    }
   };
 
   useEffect(() => {
@@ -95,33 +98,37 @@ function Signin() {
   }, []);
 
   return (
-    <div className="signin-container" data-aos="zoom-in">
-      <form className='signin-form' onSubmit={handleSubmit}>
+    <div className="signin-container">
+      <div className="signin-form" data-aos="fade-up">
         <h1>Sign In</h1>
-
-        <div id='btn1'>
-          <GoogleButton style={{ background: "white", color: "grey", width: 400 }} onClick={() => login()} />
+        <div id="btn1" onClick={() => login()}>
+          <GoogleButton  style={{background:"white", color:"grey", width:400}}/>
         </div>
-
-        <span className='span'>or use your account</span>
-
-        <input type="email" placeholder="Email" className="input-field" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" placeholder="Password" className="input-field" value={password} onChange={(e) => setPassword(e.target.value)} />
-
-        <a href="/forgetpass" className="forgot-password">Forgot Your Password</a>
-
-        <button type="submit" className="signin-button">SIGN IN</button>
-        {/* {loginError && <p style={{ color: 'red' }}>{loginError}</p>} */}
-        <p className="signin-link">Don't have an account? <a href="/signup">Sign up</a></p>
-      </form>
-      {/* {profile && (
-        <div>
-          <h2>User Profile</h2>
-          <p>Name: {profile.name}</p>
-          <p>Email: {profile.email}</p>
-          <button onClick={logOut}>Log out</button>
+        <span className="span">or use your account</span>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="email"
+            className={`input-field ${errors.email ? 'error' : ''}`}
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          {errors.email && <div className="error-message1">{errors.email}</div>}
+          <input
+            type="password"
+            className={`input-field ${errors.password ? 'error' : ''}`}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {errors.password && <div className="error-message1">{errors.password}</div>}
+          <button type="submit" className="signin-button">SIGN IN</button>
+          {errors.general && <div className="error-message1">{errors.general}</div>}
+        </form>
+        <div className="signin-link">
+          Don't have an account? <a href="/signup">Sign up</a>
         </div>
-      )} */}
+      </div>
     </div>
   );
 }
