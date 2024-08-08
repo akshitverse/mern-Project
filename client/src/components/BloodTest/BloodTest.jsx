@@ -102,7 +102,7 @@ const BloodTestForm = () => {
                     <textarea placeholder="Write something...(Optional)" className="blood-test-form__textarea" value={addComment} onChange={(e) => setAddComment(e.target.value)}></textarea>
                 </div>
                 
-                <button type="submit" className="blood-test-form__submit">Submit</button>
+                <button type="submit" className="blood-test-form__submit">Pay ₹250</button>
             </form>
         </div>
     );
